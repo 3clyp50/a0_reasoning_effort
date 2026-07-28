@@ -70,13 +70,13 @@ const model = {
     }
   },
 
-  async select(effort) {
+  async select(effort, custom = false) {
     const contextId = this.contextId;
     if (!contextId || this.saving || chatsStore.selectedContext?.running) return false;
 
     this.saving = true;
     try {
-      const response = await api.callJsonApi(endpoint, { action: "set", context_id: contextId, effort });
+      const response = await api.callJsonApi(endpoint, { action: "set", context_id: contextId, effort, custom });
       if (contextId === this.contextId) this.apply(response);
       return true;
     } catch (error) {
@@ -92,8 +92,12 @@ const model = {
     return this.options.find((option) => option.value === value)?.label || value || "Auto";
   },
 
+  customValue() {
+    return this.selected && !this.options.some((option) => option.value === this.selected) ? this.selected : "";
+  },
+
   buttonLabel() {
-    return this.effective ? this.label(this.effective) : "Auto";
+    return this.effective ? this.label(this.effective) : this.available ? "Auto" : "Custom…";
   },
 
   defaultLabel() {
@@ -101,7 +105,13 @@ const model = {
   },
 
   title() {
-    const source = this.source === "chat" ? "Chat override" : this.source === "preset" ? "Preset" : "Provider default";
+    const source = this.source === "chat"
+      ? "Chat override"
+      : this.source === "preset"
+        ? "Preset"
+        : this.available
+          ? "Provider default"
+          : "No values advertised by LiteLLM; enter a custom value";
     const modelName = this.model?.provider && this.model?.name ? ` · ${this.model.provider}/${this.model.name}` : "";
     return `Reasoning effort: ${source}${modelName}`;
   },

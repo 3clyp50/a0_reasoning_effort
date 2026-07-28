@@ -4,7 +4,7 @@
 
 <div x-data>
 <template x-if="$store.reasoningEffort">
-  <div class="reasoning-effort-control" x-data="{ showEffortDropdown: false }"
+  <div class="reasoning-effort-control" x-data="{ showEffortDropdown: false, customEffort: '' }"
        x-create="$store.reasoningEffort.onMount()"
        x-destroy="$store.reasoningEffort.cleanup()"
        x-init="
@@ -13,7 +13,7 @@
          $watch('$store.chats.selectedContext?.agent_profile', () => $store.reasoningEffort.refresh($store.chats?.selected || ''));
        "
        @keydown.escape.window="showEffortDropdown = false">
-    <template x-if="$store.reasoningEffort.available && $store.chats?.selectedContext">
+    <template x-if="$store.chats?.selectedContext">
       <div class="model-switcher-anchor" @click.outside="showEffortDropdown = false">
         <button type="button"
                 class="btn-icon-action model-switcher-btn"
@@ -22,7 +22,10 @@
                 :title="$store.reasoningEffort.title()"
                 aria-haspopup="menu"
                 :aria-expanded="showEffortDropdown"
-                @click="showEffortDropdown = !showEffortDropdown">
+                @click="
+                  showEffortDropdown = !showEffortDropdown;
+                  if (showEffortDropdown) customEffort = $store.reasoningEffort.customValue();
+                ">
           <span class="material-symbols-outlined" style="font-size: 16px;">psychology</span>
           <span class="model-switcher-label" x-text="$store.reasoningEffort.buttonLabel()"></span>
           <span class="material-symbols-outlined" style="font-size: 0.7rem;"
@@ -43,7 +46,7 @@
             <span class="material-symbols-outlined" x-show="!$store.reasoningEffort.selected" style="font-size: 15px;">check</span>
           </button>
 
-          <div class="model-switcher-divider"></div>
+          <div class="model-switcher-divider" x-show="$store.reasoningEffort.options.length"></div>
 
           <template x-for="option in $store.reasoningEffort.options" :key="option.value">
             <button type="button"
@@ -55,6 +58,38 @@
               <span class="material-symbols-outlined" x-show="$store.reasoningEffort.selected === option.value" style="font-size: 15px;">check</span>
             </button>
           </template>
+
+          <div class="model-switcher-divider"></div>
+
+          <div class="reasoning-effort-note" x-show="!$store.reasoningEffort.available">
+            LiteLLM has no known values for this model. Enter a custom value if the provider supports one.
+          </div>
+
+          <div class="reasoning-effort-custom"
+               @keydown.enter.prevent="
+                 if (customEffort.trim()) {
+                   $store.reasoningEffort.select(customEffort, true).then(ok => {
+                     if (ok) { customEffort = ''; showEffortDropdown = false; }
+                   });
+                 }
+               ">
+            <input type="text"
+                   class="reasoning-effort-input"
+                   x-model="customEffort"
+                   maxlength="64"
+                   autocomplete="off"
+                   spellcheck="false"
+                   aria-label="Custom reasoning effort"
+                   placeholder="Custom value">
+            <button type="button"
+                    class="reasoning-effort-apply"
+                    :disabled="$store.reasoningEffort.saving || !customEffort.trim()"
+                    @click="$store.reasoningEffort.select(customEffort, true).then(ok => {
+                      if (ok) { customEffort = ''; showEffortDropdown = false; }
+                    })">
+              Apply
+            </button>
+          </div>
         </div>
       </div>
     </template>
@@ -68,7 +103,7 @@
   }
 
   .reasoning-effort-dropdown {
-    min-width: 230px;
+    min-width: 280px;
   }
   .reasoning-effort-item {
     display: flex;
@@ -80,5 +115,43 @@
     color: var(--color-text);
     font-family: inherit;
     text-align: left;
+  }
+  .reasoning-effort-note {
+    padding: 6px 10px;
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+  .reasoning-effort-custom {
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+  }
+  .reasoning-effort-input {
+    min-width: 0;
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-background);
+    color: var(--color-text);
+    font: inherit;
+  }
+  .reasoning-effort-input:focus {
+    border-color: var(--color-primary);
+    outline: none;
+  }
+  .reasoning-effort-apply {
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-panel);
+    color: var(--color-text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .reasoning-effort-apply:disabled {
+    cursor: default;
+    opacity: 0.45;
   }
 </style>

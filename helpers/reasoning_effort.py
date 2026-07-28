@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from typing import Any
 
@@ -8,6 +9,12 @@ from plugins._model_config.helpers.model_config import get_chat_model_config
 
 
 CONTEXT_KEY = "a0_reasoning_effort_override"
+CUSTOM_EFFORT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+
+
+def normalize_effort(value: Any) -> str:
+    effort = str(value or "").strip().lower()
+    return effort if not effort or CUSTOM_EFFORT_PATTERN.fullmatch(effort) else ""
 
 
 def _efforts_from_info(info: dict[str, Any]) -> tuple[str, ...]:
@@ -76,13 +83,11 @@ def get_state(agent) -> dict[str, Any]:
     model_key = f"{provider}/{model}"
     stored = agent.context.get_data(CONTEXT_KEY) if getattr(agent, "context", None) else None
     selected = ""
-    if isinstance(stored, dict) and stored.get("model") == model_key and stored.get("effort") in efforts:
-        selected = str(stored["effort"])
+    if isinstance(stored, dict) and stored.get("model") == model_key:
+        selected = normalize_effort(stored.get("effort"))
 
     kwargs = config.get("kwargs") if isinstance(config.get("kwargs"), dict) else {}
-    preset_effort = str(kwargs.get("reasoning_effort") or "").strip().lower()
-    if preset_effort not in efforts:
-        preset_effort = ""
+    preset_effort = normalize_effort(kwargs.get("reasoning_effort"))
 
     return {
         "available": bool(efforts),
@@ -114,4 +119,7 @@ if __name__ == "__main__":
         }
     ) == ("medium", "high", "xhigh")
     assert _effort_label("xhigh", "anthropic", "claude-opus") == "Extra"
+    assert normalize_effort(" Extra ") == "extra"
+    assert normalize_effort("bad value") == ""
+    assert normalize_effort("x" * 65) == ""
     print("reasoning-effort capability mapping: ok")

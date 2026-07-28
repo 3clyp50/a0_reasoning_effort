@@ -2,7 +2,11 @@ from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
 from helpers.persist_chat import save_tmp_chat
 from helpers.state_monitor_integration import mark_dirty_for_context
-from usr.plugins.a0_reasoning_effort.helpers.reasoning_effort import CONTEXT_KEY, get_state
+from usr.plugins.a0_reasoning_effort.helpers.reasoning_effort import (
+    CONTEXT_KEY,
+    get_state,
+    normalize_effort,
+)
 
 
 class ReasoningEffort(ApiHandler):
@@ -25,10 +29,17 @@ class ReasoningEffort(ApiHandler):
                 response="Reasoning effort can be changed after the current run finishes.",
             )
 
-        effort = str(input.get("effort") or "").strip().lower()
+        raw_effort = str(input.get("effort") or "").strip()
+        effort = normalize_effort(raw_effort)
+        if raw_effort and not effort:
+            return Response(
+                status=400,
+                response="Reasoning effort must be 1-64 letters, digits, dots, underscores, or hyphens.",
+            )
+
         state = get_state(context.agent0)
         allowed = {option["value"] for option in state["options"]}
-        if effort and effort not in allowed:
+        if effort and effort not in allowed and input.get("custom") is not True:
             return Response(status=400, response=f"Unsupported reasoning effort: {effort}")
 
         context.set_data(
