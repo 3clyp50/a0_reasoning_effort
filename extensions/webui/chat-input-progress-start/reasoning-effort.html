@@ -1,0 +1,84 @@
+<script type="module">
+  import { store } from "/plugins/a0_reasoning_effort/webui/reasoning-effort-store.js";
+</script>
+
+<div x-data>
+<template x-if="$store.reasoningEffort">
+  <div class="reasoning-effort-control" x-data="{ showEffortDropdown: false }"
+       x-create="$store.reasoningEffort.onMount()"
+       x-destroy="$store.reasoningEffort.cleanup()"
+       x-init="
+         $watch('$store.chats.selected', value => $store.reasoningEffort.refresh(value || ''));
+         $watch('$store.modelConfig.switcherEffectivePreset', () => $store.reasoningEffort.refresh($store.chats?.selected || ''));
+         $watch('$store.chats.selectedContext?.agent_profile', () => $store.reasoningEffort.refresh($store.chats?.selected || ''));
+       "
+       @keydown.escape.window="showEffortDropdown = false">
+    <template x-if="$store.reasoningEffort.available && $store.chats?.selectedContext">
+      <div class="model-switcher-anchor" @click.outside="showEffortDropdown = false">
+        <button type="button"
+                class="btn-icon-action model-switcher-btn"
+                :class="{ 'has-override': !!$store.reasoningEffort.selected }"
+                :disabled="$store.reasoningEffort.loading || $store.reasoningEffort.saving || $store.chats.selectedContext.running"
+                :title="$store.reasoningEffort.title()"
+                aria-haspopup="menu"
+                :aria-expanded="showEffortDropdown"
+                @click="showEffortDropdown = !showEffortDropdown">
+          <span class="material-symbols-outlined" style="font-size: 16px;">psychology</span>
+          <span class="model-switcher-label" x-text="$store.reasoningEffort.buttonLabel()"></span>
+          <span class="material-symbols-outlined" style="font-size: 0.7rem;"
+                x-text="showEffortDropdown ? 'expand_less' : 'expand_more'"></span>
+        </button>
+
+        <div class="model-switcher-dropdown reasoning-effort-dropdown"
+             role="menu"
+             x-show="showEffortDropdown"
+             x-transition.opacity
+             style="display: none;">
+          <button type="button"
+                  class="model-switcher-item reasoning-effort-item"
+                  :class="{ 'active': !$store.reasoningEffort.selected }"
+                  :disabled="$store.reasoningEffort.saving"
+                  @click="$store.reasoningEffort.select('').then(ok => { if (ok) showEffortDropdown = false; })">
+            <span x-text="$store.reasoningEffort.defaultLabel()"></span>
+            <span class="material-symbols-outlined" x-show="!$store.reasoningEffort.selected" style="font-size: 15px;">check</span>
+          </button>
+
+          <div class="model-switcher-divider"></div>
+
+          <template x-for="option in $store.reasoningEffort.options" :key="option.value">
+            <button type="button"
+                    class="model-switcher-item reasoning-effort-item"
+                    :class="{ 'active': $store.reasoningEffort.selected === option.value }"
+                    :disabled="$store.reasoningEffort.saving"
+                    @click="$store.reasoningEffort.select(option.value).then(ok => { if (ok) showEffortDropdown = false; })">
+              <span x-text="option.label"></span>
+              <span class="material-symbols-outlined" x-show="$store.reasoningEffort.selected === option.value" style="font-size: 15px;">check</span>
+            </button>
+          </template>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
+</div>
+
+<style>
+  .reasoning-effort-control {
+    display: contents;
+  }
+
+  .reasoning-effort-dropdown {
+    min-width: 230px;
+  }
+  .reasoning-effort-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-family: inherit;
+    text-align: left;
+  }
+</style>
