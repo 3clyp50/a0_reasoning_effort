@@ -61,11 +61,16 @@
 
           <div class="model-switcher-divider"></div>
 
-          <div class="reasoning-effort-note" x-show="!$store.reasoningEffort.available">
-            LiteLLM has no known values for this model. Enter a custom value if the provider supports one.
+          <div class="reasoning-effort-note" x-show="$store.reasoningEffort.support === 'unknown'">
+            LiteLLM and the provider have no known values for this model. Enter a custom value if it is supported.
+          </div>
+
+          <div class="reasoning-effort-note" x-show="$store.reasoningEffort.support === 'unsupported'">
+            The provider reports that this model does not support reasoning effort.
           </div>
 
           <div class="reasoning-effort-custom"
+               x-show="$store.reasoningEffort.support !== 'unsupported'"
                @keydown.enter.prevent="
                  if (customEffort.trim()) {
                    $store.reasoningEffort.select(customEffort, true).then(ok => {

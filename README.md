@@ -2,13 +2,13 @@
 
 Adds a reasoning-effort selector after Agent Zero's preset and agent-profile controls.
 
-The plugin asks its authenticated local API for the active chat model's capabilities. The API reads LiteLLM's bundled model registry, returns supported effort values, and keeps provider-specific labels separate from the canonical values passed to LiteLLM. You can also enter a custom value for providers or model aliases that LiteLLM does not describe. A selection applies only to the current chat and model; choosing **Preset / provider default** removes the override.
+The plugin asks its authenticated local API for the active chat model's capabilities. The API reads LiteLLM's bundled model registry first, then falls back to live model metadata from Agent Zero API, Venice, and OpenRouter. Provider requests use Agent Zero's server-side configuration and are cached for 15 minutes. Provider-specific labels remain separate from the canonical values passed to LiteLLM.
 
-For models that LiteLLM cannot identify, the selector remains visible as **Custom…** and explains that the provider must support the value you enter.
+You can enter a custom value when neither LiteLLM nor the provider publishes a list. Models explicitly marked unsupported by the provider show **Unsupported** instead. A selection applies only to the current chat and model; choosing **Preset / provider default** removes the override.
 
 ## Install
 
-Place this directory at `usr/plugins/a0_reasoning_effort` in Agent Zero, then reload the WebUI. No additional dependencies or provider API calls are required.
+Place this directory at `usr/plugins/a0_reasoning_effort` in Agent Zero, then reload the WebUI. No additional dependencies are required.
 
 ## Check
 

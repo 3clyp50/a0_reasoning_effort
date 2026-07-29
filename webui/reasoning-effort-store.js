@@ -16,6 +16,8 @@ const model = {
   effective: "",
   presetEffort: "",
   source: "provider",
+  support: "unknown",
+  optionSource: "none",
   requestId: 0,
 
   onMount() {
@@ -38,6 +40,8 @@ const model = {
     this.effective = "";
     this.presetEffort = "";
     this.source = "provider";
+    this.support = "unknown";
+    this.optionSource = "none";
   },
 
   apply(data) {
@@ -48,6 +52,8 @@ const model = {
     this.effective = data?.effective || "";
     this.presetEffort = data?.preset_effort || "";
     this.source = data?.source || "provider";
+    this.support = data?.support || "unknown";
+    this.optionSource = data?.option_source || "none";
   },
 
   async refresh(contextId) {
@@ -97,6 +103,7 @@ const model = {
   },
 
   buttonLabel() {
+    if (this.support === "unsupported") return "Unsupported";
     return this.effective ? this.label(this.effective) : this.available ? "Auto" : "Custom…";
   },
 
@@ -105,13 +112,15 @@ const model = {
   },
 
   title() {
-    const source = this.source === "chat"
+    const source = this.support === "unsupported"
+      ? "Provider reports no reasoning-effort support"
+      : this.source === "chat"
       ? "Chat override"
       : this.source === "preset"
         ? "Preset"
         : this.available
           ? "Provider default"
-          : "No values advertised by LiteLLM; enter a custom value";
+          : "No values advertised by LiteLLM or the provider; enter a custom value";
     const modelName = this.model?.provider && this.model?.name ? ` · ${this.model.provider}/${this.model.name}` : "";
     return `Reasoning effort: ${source}${modelName}`;
   },

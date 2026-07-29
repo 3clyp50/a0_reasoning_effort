@@ -4,7 +4,7 @@ from helpers.persist_chat import save_tmp_chat
 from helpers.state_monitor_integration import mark_dirty_for_context
 from usr.plugins.a0_reasoning_effort.helpers.reasoning_effort import (
     CONTEXT_KEY,
-    get_state,
+    get_discovered_state,
     normalize_effort,
 )
 
@@ -20,7 +20,7 @@ class ReasoningEffort(ApiHandler):
         if not context:
             return Response(status=404, response="Context not found")
         if action == "get":
-            return get_state(context.agent0)
+            return await get_discovered_state(context.agent0)
         if action != "set":
             return Response(status=400, response=f"Unknown action: {action}")
         if context.is_running():
@@ -37,7 +37,9 @@ class ReasoningEffort(ApiHandler):
                 response="Reasoning effort must be 1-64 letters, digits, dots, underscores, or hyphens.",
             )
 
-        state = get_state(context.agent0)
+        state = await get_discovered_state(context.agent0)
+        if effort and state["support"] == "unsupported":
+            return Response(status=400, response="This model does not support reasoning effort.")
         allowed = {option["value"] for option in state["options"]}
         if effort and effort not in allowed and input.get("custom") is not True:
             return Response(status=400, response=f"Unsupported reasoning effort: {effort}")
@@ -48,4 +50,4 @@ class ReasoningEffort(ApiHandler):
         )
         save_tmp_chat(context)
         mark_dirty_for_context(context.id, reason="reasoning_effort_change")
-        return {"ok": True, **get_state(context.agent0)}
+        return {"ok": True, **await get_discovered_state(context.agent0)}
