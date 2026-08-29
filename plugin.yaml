@@ -1,7 +1,7 @@
 name: a0_reasoning_effort
 title: Reasoning Effort
 description: Select the active chat model's reasoning effort from the composer.
-version: 0.3.3
+version: 0.3.4
 settings_sections: []
 per_project_config: false
 per_agent_config: false
