@@ -13,6 +13,8 @@ from plugins._model_config.helpers.model_config import get_chat_model_config
 CONTEXT_KEY = "a0_reasoning_effort_override"
 CUSTOM_EFFORT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 CANONICAL_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+ZAI_GLM53_EFFORTS = ("low", "high", "max")
+ZAI_GLM53_PROVIDERS = frozenset({"zai", "zai_coding"})
 PROVIDER_CACHE_SECONDS = 15 * 60
 PROVIDER_TIMEOUT_SECONDS = 5.0
 PROVIDER_METADATA_IDS = frozenset({"a0_venice", "venice", "openrouter"})
@@ -22,6 +24,26 @@ _provider_models_cache: dict[tuple[str, str], tuple[float, Any]] = {}
 def normalize_effort(value: Any) -> str:
     effort = str(value or "").strip().lower()
     return effort if not effort or CUSTOM_EFFORT_PATTERN.fullmatch(effort) else ""
+
+
+def is_zai_glm53(provider: Any, model: Any) -> bool:
+    return (
+        str(provider or "").strip().lower() in ZAI_GLM53_PROVIDERS
+        and str(model or "").strip().lower() == "glm-5.3"
+    )
+
+
+def prepare_zai_glm53_kwargs(kwargs: dict[str, Any]) -> bool:
+    effort = normalize_effort(kwargs.pop("reasoning_effort", ""))
+    if effort not in ZAI_GLM53_EFFORTS:
+        return False
+    extra_body = kwargs.get("extra_body")
+    extra_body = dict(extra_body) if isinstance(extra_body, dict) else {}
+    extra_body.update(
+        {"thinking": {"type": "enabled"}, "reasoning_effort": effort}
+    )
+    kwargs["extra_body"] = extra_body
+    return True
 
 
 def _normalize_efforts(values: Any) -> tuple[str, ...]:
@@ -202,7 +224,12 @@ def get_state(agent) -> dict[str, Any]:
     if litellm_provider == "other":
         litellm_provider = "openai"
 
-    efforts = _supported_efforts(litellm_provider, model) if provider and model else ()
+    is_zai_model = is_zai_glm53(provider, model)
+    efforts = (
+        ZAI_GLM53_EFFORTS
+        if is_zai_model
+        else _supported_efforts(litellm_provider, model) if provider and model else ()
+    )
     model_key = f"{provider}/{model}"
     stored = agent.context.get_data(CONTEXT_KEY) if getattr(agent, "context", None) else None
     selected = ""
@@ -215,7 +242,7 @@ def get_state(agent) -> dict[str, Any]:
     state = {
         "available": bool(efforts),
         "support": "supported" if efforts else "unknown",
-        "option_source": "litellm" if efforts else "none",
+        "option_source": "zai" if is_zai_model else ("litellm" if efforts else "none"),
         "model": {"provider": provider, "name": model, "key": model_key},
         "options": [
             {
@@ -249,6 +276,7 @@ def get_override(agent) -> str:
 if __name__ == "__main__":
     import asyncio
     import sys
+    from types import SimpleNamespace
     from unittest.mock import AsyncMock, patch
 
     assert _efforts_from_info({}) == ("low", "medium", "high")
@@ -263,6 +291,27 @@ if __name__ == "__main__":
     assert normalize_effort("bad value") == ""
     assert normalize_effort("x" * 65) == ""
     assert _normalize_efforts(["high", "low", "extra", "low"]) == ("low", "high", "extra")
+    assert all(is_zai_glm53(provider, "GLM-5.3") for provider in ZAI_GLM53_PROVIDERS)
+    assert not is_zai_glm53("openrouter", "z-ai/glm-5.3")
+    for provider in ZAI_GLM53_PROVIDERS:
+        with patch.object(
+            sys.modules[__name__],
+            "get_chat_model_config",
+            return_value={"provider": provider, "name": "glm-5.3"},
+        ):
+            zai_state = get_state(SimpleNamespace(context=SimpleNamespace(get_data=lambda _: None)))
+        assert zai_state["support"] == "supported"
+        assert [option["value"] for option in zai_state["options"]] == list(ZAI_GLM53_EFFORTS)
+    zai_kwargs = {"reasoning_effort": "high", "extra_body": {"metadata": {"key": "value"}}}
+    assert prepare_zai_glm53_kwargs(zai_kwargs)
+    assert zai_kwargs == {
+        "extra_body": {
+            "metadata": {"key": "value"},
+            "thinking": {"type": "enabled"},
+            "reasoning_effort": "high",
+        }
+    }
+    assert not prepare_zai_glm53_kwargs({"reasoning_effort": "medium"})
     venice = {
         "data": [
             {
