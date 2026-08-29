@@ -5,7 +5,7 @@ from helpers.state_monitor_integration import mark_dirty_for_context
 from usr.plugins.a0_reasoning_effort.helpers.reasoning_effort import (
     CONTEXT_KEY,
     get_discovered_state,
-    is_zai_glm53,
+    is_glm53,
     normalize_effort,
 )
 
@@ -44,7 +44,7 @@ class ReasoningEffort(ApiHandler):
         allowed = {option["value"] for option in state["options"]}
         if (
             effort
-            and is_zai_glm53(state["model"]["provider"], state["model"]["name"])
+            and is_glm53(state["model"]["provider"], state["model"]["name"])
             and effort not in allowed
         ):
             return Response(status=400, response=f"Unsupported reasoning effort: {effort}")

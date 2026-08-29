@@ -13,8 +13,9 @@ from plugins._model_config.helpers.model_config import get_chat_model_config
 CONTEXT_KEY = "a0_reasoning_effort_override"
 CUSTOM_EFFORT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 CANONICAL_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
-ZAI_GLM53_EFFORTS = ("low", "high", "max")
+GLM53_EFFORTS = ("low", "high", "max")
 ZAI_GLM53_PROVIDERS = frozenset({"zai", "zai_coding"})
+GLM53_PROVIDERS = ZAI_GLM53_PROVIDERS | {"a0_venice"}
 PROVIDER_CACHE_SECONDS = 15 * 60
 PROVIDER_TIMEOUT_SECONDS = 5.0
 PROVIDER_METADATA_IDS = frozenset({"a0_venice", "venice", "openrouter"})
@@ -26,22 +27,22 @@ def normalize_effort(value: Any) -> str:
     return effort if not effort or CUSTOM_EFFORT_PATTERN.fullmatch(effort) else ""
 
 
-def is_zai_glm53(provider: Any, model: Any) -> bool:
+def is_glm53(provider: Any, model: Any) -> bool:
     return (
-        str(provider or "").strip().lower() in ZAI_GLM53_PROVIDERS
+        str(provider or "").strip().lower() in GLM53_PROVIDERS
         and str(model or "").strip().lower() == "glm-5.3"
     )
 
 
-def prepare_zai_glm53_kwargs(kwargs: dict[str, Any]) -> bool:
+def prepare_glm53_kwargs(provider: Any, kwargs: dict[str, Any]) -> bool:
     effort = normalize_effort(kwargs.pop("reasoning_effort", ""))
-    if effort not in ZAI_GLM53_EFFORTS:
+    if effort not in GLM53_EFFORTS:
         return False
     extra_body = kwargs.get("extra_body")
     extra_body = dict(extra_body) if isinstance(extra_body, dict) else {}
-    extra_body.update(
-        {"thinking": {"type": "enabled"}, "reasoning_effort": effort}
-    )
+    extra_body["reasoning_effort"] = effort
+    if str(provider or "").strip().lower() in ZAI_GLM53_PROVIDERS:
+        extra_body["thinking"] = {"type": "enabled"}
     kwargs["extra_body"] = extra_body
     return True
 
@@ -224,10 +225,10 @@ def get_state(agent) -> dict[str, Any]:
     if litellm_provider == "other":
         litellm_provider = "openai"
 
-    is_zai_model = is_zai_glm53(provider, model)
+    is_glm53_model = is_glm53(provider, model)
     efforts = (
-        ZAI_GLM53_EFFORTS
-        if is_zai_model
+        GLM53_EFFORTS
+        if is_glm53_model
         else _supported_efforts(litellm_provider, model) if provider and model else ()
     )
     model_key = f"{provider}/{model}"
@@ -242,7 +243,7 @@ def get_state(agent) -> dict[str, Any]:
     state = {
         "available": bool(efforts),
         "support": "supported" if efforts else "unknown",
-        "option_source": "zai" if is_zai_model else ("litellm" if efforts else "none"),
+        "option_source": "glm53" if is_glm53_model else ("litellm" if efforts else "none"),
         "model": {"provider": provider, "name": model, "key": model_key},
         "options": [
             {
@@ -291,9 +292,9 @@ if __name__ == "__main__":
     assert normalize_effort("bad value") == ""
     assert normalize_effort("x" * 65) == ""
     assert _normalize_efforts(["high", "low", "extra", "low"]) == ("low", "high", "extra")
-    assert all(is_zai_glm53(provider, "GLM-5.3") for provider in ZAI_GLM53_PROVIDERS)
-    assert not is_zai_glm53("openrouter", "z-ai/glm-5.3")
-    for provider in ZAI_GLM53_PROVIDERS:
+    assert all(is_glm53(provider, "GLM-5.3") for provider in GLM53_PROVIDERS)
+    assert not is_glm53("openrouter", "z-ai/glm-5.3")
+    for provider in GLM53_PROVIDERS:
         with patch.object(
             sys.modules[__name__],
             "get_chat_model_config",
@@ -301,9 +302,9 @@ if __name__ == "__main__":
         ):
             zai_state = get_state(SimpleNamespace(context=SimpleNamespace(get_data=lambda _: None)))
         assert zai_state["support"] == "supported"
-        assert [option["value"] for option in zai_state["options"]] == list(ZAI_GLM53_EFFORTS)
+        assert [option["value"] for option in zai_state["options"]] == list(GLM53_EFFORTS)
     zai_kwargs = {"reasoning_effort": "high", "extra_body": {"metadata": {"key": "value"}}}
-    assert prepare_zai_glm53_kwargs(zai_kwargs)
+    assert prepare_glm53_kwargs("zai", zai_kwargs)
     assert zai_kwargs == {
         "extra_body": {
             "metadata": {"key": "value"},
@@ -311,7 +312,10 @@ if __name__ == "__main__":
             "reasoning_effort": "high",
         }
     }
-    assert not prepare_zai_glm53_kwargs({"reasoning_effort": "medium"})
+    a0_kwargs = {"reasoning_effort": "high"}
+    assert prepare_glm53_kwargs("a0_venice", a0_kwargs)
+    assert a0_kwargs == {"extra_body": {"reasoning_effort": "high"}}
+    assert not prepare_glm53_kwargs("a0_venice", {"reasoning_effort": "medium"})
     venice = {
         "data": [
             {
