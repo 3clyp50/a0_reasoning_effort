@@ -14,8 +14,9 @@ CONTEXT_KEY = "a0_reasoning_effort_override"
 CUSTOM_EFFORT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 CANONICAL_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 GLM53_EFFORTS = ("low", "high", "max")
+GLM53_MODEL_IDS = frozenset({"glm-5.3", "z-ai-glm-5-3", "z-ai-glm-5-3-flash"})
 ZAI_GLM53_PROVIDERS = frozenset({"zai", "zai_coding"})
-GLM53_PROVIDERS = ZAI_GLM53_PROVIDERS | {"a0_venice"}
+GLM53_PROVIDERS = ZAI_GLM53_PROVIDERS | {"a0_venice", "venice"}
 PROVIDER_CACHE_SECONDS = 15 * 60
 PROVIDER_TIMEOUT_SECONDS = 5.0
 PROVIDER_METADATA_IDS = frozenset({"a0_venice", "venice", "openrouter"})
@@ -30,7 +31,7 @@ def normalize_effort(value: Any) -> str:
 def is_glm53(provider: Any, model: Any) -> bool:
     return (
         str(provider or "").strip().lower() in GLM53_PROVIDERS
-        and str(model or "").strip().lower() == "glm-5.3"
+        and str(model or "").strip().lower() in GLM53_MODEL_IDS
     )
 
 
@@ -293,6 +294,11 @@ if __name__ == "__main__":
     assert normalize_effort("x" * 65) == ""
     assert _normalize_efforts(["high", "low", "extra", "low"]) == ("low", "high", "extra")
     assert all(is_glm53(provider, "GLM-5.3") for provider in GLM53_PROVIDERS)
+    assert all(
+        is_glm53(provider, model)
+        for provider in ("a0_venice", "venice")
+        for model in GLM53_MODEL_IDS
+    )
     assert not is_glm53("openrouter", "z-ai/glm-5.3")
     for provider in GLM53_PROVIDERS:
         with patch.object(
@@ -303,6 +309,13 @@ if __name__ == "__main__":
             zai_state = get_state(SimpleNamespace(context=SimpleNamespace(get_data=lambda _: None)))
         assert zai_state["support"] == "supported"
         assert [option["value"] for option in zai_state["options"]] == list(GLM53_EFFORTS)
+    with patch.object(
+        sys.modules[__name__],
+        "get_chat_model_config",
+        return_value={"provider": "a0_venice", "name": "z-ai-glm-5-3"},
+    ):
+        a0_state = get_state(SimpleNamespace(context=SimpleNamespace(get_data=lambda _: None)))
+    assert [option["value"] for option in a0_state["options"]] == list(GLM53_EFFORTS)
     zai_kwargs = {"reasoning_effort": "high", "extra_body": {"metadata": {"key": "value"}}}
     assert prepare_glm53_kwargs("zai", zai_kwargs)
     assert zai_kwargs == {
