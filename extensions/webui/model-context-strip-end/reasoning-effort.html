@@ -5,7 +5,10 @@
 <div x-data>
 <template x-if="$store.reasoningEffort">
   <div class="reasoning-effort-control" x-data="{ showEffortDropdown: false, customEffort: '' }"
-       x-move-before=".agent-profile-anchor"
+       x-effect="
+         $store.chats.selectedContext?.agent_profile;
+         $nextTick(() => document.querySelector('.agent-profile-anchor')?.before($el));
+       "
        x-create="$store.reasoningEffort.onMount()"
        x-destroy="$store.reasoningEffort.cleanup()"
        x-init="
