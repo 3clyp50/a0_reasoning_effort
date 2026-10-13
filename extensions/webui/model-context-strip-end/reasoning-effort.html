@@ -22,7 +22,7 @@
         <button type="button"
                 class="btn-icon-action model-switcher-btn"
                 :class="{ 'has-override': !!$store.reasoningEffort.selected }"
-                :disabled="$store.reasoningEffort.loading || $store.reasoningEffort.saving || $store.chats.selectedContext.running"
+                :disabled="$store.reasoningEffort.loading || $store.reasoningEffort.saving"
                 :title="$store.reasoningEffort.title()"
                 aria-haspopup="menu"
                 :aria-expanded="showEffortDropdown"

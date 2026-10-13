@@ -24,12 +24,6 @@ class ReasoningEffort(ApiHandler):
             return await get_discovered_state(context.agent0)
         if action != "set":
             return Response(status=400, response=f"Unknown action: {action}")
-        if context.is_running():
-            return Response(
-                status=409,
-                response="Reasoning effort can be changed after the current run finishes.",
-            )
-
         raw_effort = str(input.get("effort") or "").strip()
         effort = normalize_effort(raw_effort)
         if raw_effort and not effort:

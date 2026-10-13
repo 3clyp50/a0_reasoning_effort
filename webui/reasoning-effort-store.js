@@ -78,7 +78,7 @@ const model = {
 
   async select(effort, custom = false) {
     const contextId = this.contextId;
-    if (!contextId || this.saving || chatsStore.selectedContext?.running) return false;
+    if (!contextId || this.saving) return false;
 
     this.saving = true;
     try {

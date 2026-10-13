@@ -6,6 +6,8 @@ The plugin asks its authenticated local API for the active chat model's capabili
 
 You can enter a custom value when neither LiteLLM nor the provider publishes a list. Models explicitly marked unsupported by the provider show **Unsupported** instead. A selection applies only to the current chat and model; choosing **Preset / provider default** removes the override.
 
+You can change reasoning effort while the agent is running. The selection applies to the next model turn; a request already in progress keeps its original effort.
+
 ## Install
 
 Place this directory at `usr/plugins/a0_reasoning_effort` in Agent Zero, then reload the WebUI. No additional dependencies are required.
@@ -15,5 +17,7 @@ Place this directory at `usr/plugins/a0_reasoning_effort` in Agent Zero, then re
 From the Agent Zero root:
 
 ```bash
-python usr/plugins/a0_reasoning_effort/helpers/reasoning_effort.py
+PYTHONPATH=. python usr/plugins/a0_reasoning_effort/helpers/reasoning_effort.py
+PYTHONPATH=. python usr/plugins/a0_reasoning_effort/tests/test_active_run.py
+node usr/plugins/a0_reasoning_effort/tests/test_active_run.mjs
 ```
