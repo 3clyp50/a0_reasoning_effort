@@ -16,7 +16,9 @@ CANONICAL_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 GLM53_EFFORTS = ("low", "high", "max")
 GLM53_MODEL_IDS = frozenset({"glm-5.3", "z-ai-glm-5-3", "z-ai-glm-5-3-flash"})
 ZAI_GLM53_PROVIDERS = frozenset({"zai", "zai_coding"})
-GLM53_PROVIDERS = ZAI_GLM53_PROVIDERS | {"a0_venice", "venice"}
+VENICE_PROVIDERS = frozenset({"a0_venice", "venice"})
+GLM53_PROVIDERS = ZAI_GLM53_PROVIDERS | VENICE_PROVIDERS
+GEMINI4_ARGON_EFFORTS = ("low", "medium", "high")
 PROVIDER_CACHE_SECONDS = 15 * 60
 PROVIDER_TIMEOUT_SECONDS = 5.0
 PROVIDER_METADATA_IDS = frozenset({"a0_venice", "venice", "openrouter"})
@@ -28,17 +30,21 @@ def normalize_effort(value: Any) -> str:
     return effort if not effort or CUSTOM_EFFORT_PATTERN.fullmatch(effort) else ""
 
 
-def is_glm53(provider: Any, model: Any) -> bool:
-    return (
-        str(provider or "").strip().lower() in GLM53_PROVIDERS
-        and str(model or "").strip().lower() in GLM53_MODEL_IDS
-    )
+def compatibility_efforts(provider: Any, model: Any) -> tuple[str, ...]:
+    provider = str(provider or "").strip().lower()
+    model = str(model or "").strip().lower()
+    if provider in GLM53_PROVIDERS and model in GLM53_MODEL_IDS:
+        return GLM53_EFFORTS
+    if provider in VENICE_PROVIDERS and model == "gemini-4-argon":
+        return GEMINI4_ARGON_EFFORTS
+    return ()
 
 
-def prepare_glm53_kwargs(provider: Any, kwargs: dict[str, Any]) -> bool:
-    effort = normalize_effort(kwargs.pop("reasoning_effort", ""))
-    if effort not in GLM53_EFFORTS:
+def prepare_compatibility_kwargs(provider: Any, model: Any, kwargs: dict[str, Any]) -> bool:
+    effort = normalize_effort(kwargs.get("reasoning_effort"))
+    if effort not in compatibility_efforts(provider, model):
         return False
+    kwargs.pop("reasoning_effort")
     extra_body = kwargs.get("extra_body")
     extra_body = dict(extra_body) if isinstance(extra_body, dict) else {}
     extra_body["reasoning_effort"] = effort
@@ -226,12 +232,12 @@ def get_state(agent) -> dict[str, Any]:
     if litellm_provider == "other":
         litellm_provider = "openai"
 
-    is_glm53_model = is_glm53(provider, model)
-    efforts = (
-        GLM53_EFFORTS
-        if is_glm53_model
-        else _supported_efforts(litellm_provider, model) if provider and model else ()
-    )
+    efforts = _supported_efforts(litellm_provider, model) if provider and model else ()
+    option_source = "litellm" if efforts else "none"
+    if not efforts:
+        efforts = compatibility_efforts(provider, model)
+        if efforts:
+            option_source = "compatibility"
     model_key = f"{provider}/{model}"
     stored = agent.context.get_data(CONTEXT_KEY) if getattr(agent, "context", None) else None
     selected = ""
@@ -244,7 +250,7 @@ def get_state(agent) -> dict[str, Any]:
     state = {
         "available": bool(efforts),
         "support": "supported" if efforts else "unknown",
-        "option_source": "glm53" if is_glm53_model else ("litellm" if efforts else "none"),
+        "option_source": option_source,
         "model": {"provider": provider, "name": model, "key": model_key},
         "options": [
             {
@@ -293,13 +299,19 @@ if __name__ == "__main__":
     assert normalize_effort("bad value") == ""
     assert normalize_effort("x" * 65) == ""
     assert _normalize_efforts(["high", "low", "extra", "low"]) == ("low", "high", "extra")
-    assert all(is_glm53(provider, "GLM-5.3") for provider in GLM53_PROVIDERS)
+    assert all(compatibility_efforts(provider, "GLM-5.3") == GLM53_EFFORTS for provider in GLM53_PROVIDERS)
     assert all(
-        is_glm53(provider, model)
+        compatibility_efforts(provider, model) == GLM53_EFFORTS
         for provider in ("a0_venice", "venice")
         for model in GLM53_MODEL_IDS
     )
-    assert not is_glm53("openrouter", "z-ai/glm-5.3")
+    assert not compatibility_efforts("openrouter", "z-ai/glm-5.3")
+    assert not compatibility_efforts("google", "gemini-4-argon")
+    assert not compatibility_efforts("a0_venice", "gemini-4-argon-other")
+    assert all(
+        compatibility_efforts(provider, "gemini-4-argon") == GEMINI4_ARGON_EFFORTS
+        for provider in VENICE_PROVIDERS
+    )
     for provider in GLM53_PROVIDERS:
         with patch.object(
             sys.modules[__name__],
@@ -317,7 +329,7 @@ if __name__ == "__main__":
         a0_state = get_state(SimpleNamespace(context=SimpleNamespace(get_data=lambda _: None)))
     assert [option["value"] for option in a0_state["options"]] == list(GLM53_EFFORTS)
     zai_kwargs = {"reasoning_effort": "high", "extra_body": {"metadata": {"key": "value"}}}
-    assert prepare_glm53_kwargs("zai", zai_kwargs)
+    assert prepare_compatibility_kwargs("zai", "glm-5.3", zai_kwargs)
     assert zai_kwargs == {
         "extra_body": {
             "metadata": {"key": "value"},
@@ -326,9 +338,19 @@ if __name__ == "__main__":
         }
     }
     a0_kwargs = {"reasoning_effort": "high"}
-    assert prepare_glm53_kwargs("a0_venice", a0_kwargs)
+    assert prepare_compatibility_kwargs("a0_venice", "z-ai-glm-5-3", a0_kwargs)
     assert a0_kwargs == {"extra_body": {"reasoning_effort": "high"}}
-    assert not prepare_glm53_kwargs("a0_venice", {"reasoning_effort": "medium"})
+    assert not prepare_compatibility_kwargs("a0_venice", "z-ai-glm-5-3", {"reasoning_effort": "medium"})
+    for provider in VENICE_PROVIDERS:
+        for effort in GEMINI4_ARGON_EFFORTS:
+            argon_kwargs = {"reasoning_effort": effort, "extra_body": {"metadata": {"key": "value"}}}
+            assert prepare_compatibility_kwargs(provider, "gemini-4-argon", argon_kwargs)
+            assert argon_kwargs == {
+                "extra_body": {"metadata": {"key": "value"}, "reasoning_effort": effort}
+            }
+    invalid_kwargs = {"reasoning_effort": "max"}
+    assert not prepare_compatibility_kwargs("a0_venice", "gemini-4-argon", invalid_kwargs)
+    assert invalid_kwargs == {"reasoning_effort": "max"}
     venice = {
         "data": [
             {

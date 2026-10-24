@@ -1,11 +1,12 @@
 from agent import AgentContext
 from helpers.api import ApiHandler, Request, Response
 from helpers.persist_chat import save_tmp_chat
+from helpers.plugins import get_enabled_plugins
 from helpers.state_monitor_integration import mark_dirty_for_context
 from usr.plugins.a0_reasoning_effort.helpers.reasoning_effort import (
     CONTEXT_KEY,
+    compatibility_efforts,
     get_discovered_state,
-    is_glm53,
     normalize_effort,
 )
 
@@ -20,6 +21,8 @@ class ReasoningEffort(ApiHandler):
         context = AgentContext.get(context_id)
         if not context:
             return Response(status=404, response="Context not found")
+        if "a0_reasoning_effort" not in get_enabled_plugins(context.agent0):
+            return Response(status=404, response="Reasoning Effort is not enabled for this chat.")
         if action == "get":
             return await get_discovered_state(context.agent0)
         if action != "set":
@@ -33,12 +36,14 @@ class ReasoningEffort(ApiHandler):
             )
 
         state = await get_discovered_state(context.agent0)
+        if input.get("model_key") and input["model_key"] != state["model"]["key"]:
+            return Response(status=409, response="The chat model changed. Reopen the reasoning-effort menu.")
         if effort and state["support"] == "unsupported":
             return Response(status=400, response="This model does not support reasoning effort.")
         allowed = {option["value"] for option in state["options"]}
         if (
             effort
-            and is_glm53(state["model"]["provider"], state["model"]["name"])
+            and compatibility_efforts(state["model"]["provider"], state["model"]["name"])
             and effort not in allowed
         ):
             return Response(status=400, response=f"Unsupported reasoning effort: {effort}")
