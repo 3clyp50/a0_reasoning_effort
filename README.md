@@ -1,6 +1,6 @@
 # Reasoning Effort
 
-Adds a reasoning-effort selector between Agent Zero's preset and agent-profile controls.
+Adds a reasoning-effort selector between Agent Zero's preset and agent-profile controls, plus an `/effort` slash command.
 
 The plugin asks its authenticated local API for the active chat model's capabilities. The API reads LiteLLM's bundled model registry first, then falls back to live model metadata from Agent Zero API, Venice, and OpenRouter. Provider requests use Agent Zero's server-side configuration and are cached for 15 minutes. Provider-specific labels remain separate from the canonical values passed to LiteLLM.
 
@@ -18,6 +18,17 @@ Version **0.4.0** registers an **Effort** choice control through Core's scoped `
 
 The anchored popover beside provider/model offers the same advertised values, custom field, and preset/provider default as the WebUI. Labels, choices, validation, and per-chat/model persistence remain in this plugin; the connector only renders generic controls. Requests use Core's authenticated, CSRF-protected control API. Disabling or removing the plugin hides the control. Escape or clicking outside cancels without changing the setting.
 
+## Slash command
+
+Version **0.4.1** adds `/effort` to the WebUI slash picker and A0 CLI command palette when Core's built-in Commands plugin is enabled. It runs entirely in this plugin, without an LLM request or plugin-specific connector code.
+
+- `/effort` shows the current model, effective effort, its source, and available levels.
+- `/effort high` selects an advertised level. Use canonical values such as `xhigh` for **Extra** and `none` for **Off**, when available.
+- `/effort default` removes the current chat/model override and restores the preset/provider default.
+- `/effort custom <value>` uses the same custom-value validation as the popover; it cannot bypass an explicitly unsupported model or compatibility-level restrictions.
+
+Changes share the popover's per-chat/model state and apply to the next model turn. The CLI sends plugin commands through its normal chat path; use the popover to change effort immediately during an active run.
+
 ## Install
 
 Place this directory at `usr/plugins/a0_reasoning_effort` in Agent Zero, then reload the WebUI. No additional dependencies are required.
@@ -29,5 +40,6 @@ From the Agent Zero root:
 ```bash
 PYTHONPATH=. python usr/plugins/a0_reasoning_effort/helpers/reasoning_effort.py
 PYTHONPATH=. python usr/plugins/a0_reasoning_effort/tests/test_active_run.py
+PYTHONPATH=. python usr/plugins/a0_reasoning_effort/tests/test_command.py
 node usr/plugins/a0_reasoning_effort/tests/test_active_run.mjs
 ```

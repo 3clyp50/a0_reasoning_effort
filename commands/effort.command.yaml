@@ -1,0 +1,5 @@
+name: effort
+description: Show or change reasoning effort for the current chat and model.
+argument_hint: /effort [<level>|default|custom <value>]
+type: script
+script_path: effort.py
