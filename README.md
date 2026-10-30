@@ -20,6 +20,8 @@ Version **0.4.0** registers an **Effort** choice control through Core's scoped `
 
 The anchored popover beside provider/model offers the same advertised values, custom field, and preset/provider default as the WebUI. Labels, choices, validation, and per-chat/model persistence remain in this plugin; the connector only renders generic controls. Requests use Core's authenticated, CSRF-protected control API. Disabling or removing the plugin hides the control. Escape or clicking outside cancels without changing the setting.
 
+The Effort label shares the provider/model text colour and keyboard-focus styling in updated connector builds. This styling belongs to the CLI; updating the plugin alone does not change it.
+
 ## Slash command
 
 Version **0.4.1** adds `/effort` to the WebUI slash picker and A0 CLI command palette when Core's built-in Commands plugin is enabled. It runs entirely in this plugin, without an LLM request or plugin-specific connector code.
